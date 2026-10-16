@@ -136,7 +136,7 @@ class PropertiesAmqpRabbitConnectionDetailsTests {
 		SslBundle bundle = mock(SslBundle.class);
 		this.sslBundleRegistry.registerBundle("test-bundle", bundle);
 		this.properties.getSsl().setBundle("test-bundle");
-		assertThat(this.connectionDetails.getSslBundle()).isSameAs(bundle);
+		assertThat(this.connectionDetails.getSslBundle()).isSameAs(this.sslBundleRegistry.getBundle("test-bundle"));
 	}
 
 	@Test

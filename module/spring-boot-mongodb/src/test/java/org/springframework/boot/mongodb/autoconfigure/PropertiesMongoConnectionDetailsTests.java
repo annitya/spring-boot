@@ -178,7 +178,7 @@ class PropertiesMongoConnectionDetailsTests {
 		this.sslBundleRegistry.registerBundle("bundle-1", bundle1);
 		this.properties.getSsl().setBundle("bundle-1");
 		SslBundle sslBundle = this.connectionDetails.getSslBundle();
-		assertThat(sslBundle).isSameAs(bundle1);
+		assertThat(sslBundle).isSameAs(this.sslBundleRegistry.getBundle("bundle-1"));
 	}
 
 	@Test

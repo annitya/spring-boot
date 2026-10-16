@@ -13,6 +13,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
+import javax.net.ssl.SSLContext;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
@@ -57,9 +59,17 @@ public class DefaultSslBundleRegistry implements SslBundleRegistry, SslBundles {
 		getRegistered(name).update(updatedBundle);
 	}
 
+	/**
+	 * {@inheritDoc}
+	 * <p>
+	 * The returned bundle has stable object identity and delegates to the bundle that is
+	 * registered under the given name at the time each method is called. A caller that
+	 * retains the returned instance will therefore see the result of any subsequent
+	 * {@link #updateBundle(String, SslBundle) update}.
+	 */
 	@Override
 	public SslBundle getBundle(String name) {
-		return getRegistered(name).getBundle();
+		return getRegistered(name);
 	}
 
 	@Override
@@ -88,7 +98,17 @@ public class DefaultSslBundleRegistry implements SslBundleRegistry, SslBundles {
 		return registered;
 	}
 
-	private static class RegisteredSslBundle {
+	/**
+	 * An {@link SslBundle} registered under a name, with stable object identity across
+	 * updates.
+	 * <p>
+	 * Each method resolves the currently registered bundle rather than caching anything,
+	 * so there is no window in which a retained reference can disagree with the registry.
+	 * This is what allows technologies that capture an {@code SslBundle} once, such as
+	 * Kafka's {@code SslBundleSslEngineFactory}, to pick up reloaded trust material
+	 * without being handed a new instance.
+	 */
+	private static final class RegisteredSslBundle implements SslBundle {
 
 		private final String name;
 
@@ -112,13 +132,52 @@ public class DefaultSslBundleRegistry implements SslBundleRegistry, SslBundles {
 			this.updateHandlers.forEach((handler) -> handler.accept(updatedBundle));
 		}
 
-		SslBundle getBundle() {
-			return this.bundle;
-		}
-
 		void addUpdateHandler(Consumer<SslBundle> updateHandler) {
 			Assert.notNull(updateHandler, "'updateHandler' must not be null");
 			this.updateHandlers.add(updateHandler);
+		}
+
+		@Override
+		public SslStoreBundle getStores() {
+			return this.bundle.getStores();
+		}
+
+		@Override
+		public SslBundleKey getKey() {
+			return this.bundle.getKey();
+		}
+
+		@Override
+		public SslOptions getOptions() {
+			return this.bundle.getOptions();
+		}
+
+		@Override
+		public String getProtocol() {
+			return this.bundle.getProtocol();
+		}
+
+		@Override
+		public SslManagerBundle getManagers() {
+			return this.bundle.getManagers();
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * <p>
+		 * Resolves the registered bundle once so that the context is built from a single
+		 * coherent bundle. The inherited default calls {@link #getManagers()} and
+		 * {@link #getProtocol()} separately, which a concurrent update could fall
+		 * between.
+		 */
+		@Override
+		public SSLContext createSslContext() {
+			return this.bundle.createSslContext();
+		}
+
+		@Override
+		public String toString() {
+			return this.bundle.toString();
 		}
 
 	}

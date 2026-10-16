@@ -6,6 +6,8 @@ package org.springframework.boot.ssl;
 
 import java.util.concurrent.atomic.AtomicReference;
 
+import javax.net.ssl.SSLContext;
+
 import org.awaitility.Awaitility;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -43,8 +46,9 @@ class DefaultSslBundleRegistryTests {
 
 	@Test
 	void createWithNameAndBundleRegistersBundle() {
+		given(this.bundle1.getProtocol()).willReturn("bundle1");
 		DefaultSslBundleRegistry registry = new DefaultSslBundleRegistry("test", this.bundle1);
-		assertThat(registry.getBundle("test")).isSameAs(this.bundle1);
+		assertThat(registry.getBundle("test").getProtocol()).isEqualTo("bundle1");
 	}
 
 	@Test
@@ -70,8 +74,9 @@ class DefaultSslBundleRegistryTests {
 
 	@Test
 	void registerBundleRegistersBundle() {
+		given(this.bundle1.getProtocol()).willReturn("bundle1");
 		this.registry.registerBundle("test", this.bundle1);
-		assertThat(this.registry.getBundle("test")).isSameAs(this.bundle1);
+		assertThat(this.registry.getBundle("test").getProtocol()).isEqualTo("bundle1");
 	}
 
 	@Test
@@ -90,10 +95,59 @@ class DefaultSslBundleRegistryTests {
 
 	@Test
 	void getBundleReturnsBundle() {
+		given(this.bundle1.getProtocol()).willReturn("bundle1");
+		given(this.bundle2.getProtocol()).willReturn("bundle2");
 		this.registry.registerBundle("test1", this.bundle1);
 		this.registry.registerBundle("test2", this.bundle2);
-		assertThat(this.registry.getBundle("test1")).isSameAs(this.bundle1);
-		assertThat(this.registry.getBundle("test2")).isSameAs(this.bundle2);
+		assertThat(this.registry.getBundle("test1").getProtocol()).isEqualTo("bundle1");
+		assertThat(this.registry.getBundle("test2").getProtocol()).isEqualTo("bundle2");
+	}
+
+	@Test
+	void getBundleReturnsSameInstanceOnEachCall() {
+		this.registry.registerBundle("test", this.bundle1);
+		assertThat(this.registry.getBundle("test")).isSameAs(this.registry.getBundle("test"));
+	}
+
+	@Test
+	void getBundleReturnsSameInstanceAfterUpdate() {
+		this.registry.registerBundle("test", this.bundle1);
+		SslBundle retrieved = this.registry.getBundle("test");
+		this.registry.updateBundle("test", this.bundle2);
+		assertThat(this.registry.getBundle("test")).isSameAs(retrieved);
+	}
+
+	@Test
+	void getBundleReturnsBundleThatDelegatesToUpdatedBundle() {
+		SslStoreBundle stores = mock(SslStoreBundle.class);
+		SslBundleKey key = mock(SslBundleKey.class);
+		SslOptions options = mock(SslOptions.class);
+		SslManagerBundle managers = mock(SslManagerBundle.class);
+		SSLContext sslContext = mock(SSLContext.class);
+		given(this.bundle1.getProtocol()).willReturn("bundle1");
+		given(this.bundle2.getStores()).willReturn(stores);
+		given(this.bundle2.getKey()).willReturn(key);
+		given(this.bundle2.getOptions()).willReturn(options);
+		given(this.bundle2.getProtocol()).willReturn("bundle2");
+		given(this.bundle2.getManagers()).willReturn(managers);
+		given(this.bundle2.createSslContext()).willReturn(sslContext);
+		this.registry.registerBundle("test", this.bundle1);
+		SslBundle retrieved = this.registry.getBundle("test");
+		assertThat(retrieved.getProtocol()).isEqualTo("bundle1");
+		this.registry.updateBundle("test", this.bundle2);
+		assertThat(retrieved.getStores()).isSameAs(stores);
+		assertThat(retrieved.getKey()).isSameAs(key);
+		assertThat(retrieved.getOptions()).isSameAs(options);
+		assertThat(retrieved.getProtocol()).isEqualTo("bundle2");
+		assertThat(retrieved.getManagers()).isSameAs(managers);
+		assertThat(retrieved.createSslContext()).isSameAs(sslContext);
+	}
+
+	@Test
+	void getBundleReturnsBundleWithToStringOfRegisteredBundle() {
+		given(this.bundle1.toString()).willReturn("bundle1");
+		this.registry.registerBundle("test", this.bundle1);
+		assertThat(this.registry.getBundle("test")).hasToString("bundle1");
 	}
 
 	@Test
